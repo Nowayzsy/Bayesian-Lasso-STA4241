@@ -1,4 +1,4 @@
-# Bayesian Lasso 
+# A brief introduction to Bayesian LASSO
 
 This repository contains the STA4241 final project for a Bayesian Lasso study comparing frequentist Lasso with Bayesian Lasso on simulated data. It emphasizes **uncertainty**, **calibration**, and **diagnostics** (posterior predictive checks).
 
