@@ -1,0 +1,580 @@
+---
+title: "A brief introduction to Bayesian LASSO"
+author: "Shenyu Zhou"
+date: "2024-12-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+# 1. Introduction
+
+Consider the linear regression model:
+
+$$
+y_i = \beta_0 + \sum_{j=1}^p \beta_jx_{ij} + \epsilon_i, 
+$$
+
+with data $(X, Y)$, where $X\in \mathbb{R}^{n\times p}$ and $Y\in \mathbb{R}^n$, and the assumption for the error term that $\epsilon_i \sim N(0, \sigma^2)$. The parameters $\beta = (\beta_1, ..., \beta_p)$ and $\beta_0$ are typically estimated by minimizing the Residual Sum of Squares (RSS):
+
+$$
+\text{RSS}(\beta) = \sum_{i=1}^n\left(Y_i - \beta_0 - \sum_{j=1}^p\beta_jX_{ij}\right)^2,
+$$
+
+which leads to the ordinary least squares (OLS) estimates.
+
+However, OLS may not be robust when $p$ is large or when collinearity exists. In order to counter this, shrinkage methods are introduced. LASSO (Least Absolute Shrinkage and Selection Operator) is one such technique that replaces the minimization of RSS by a penalized version:
+
+$$
+\hat{\beta}_{\text{lasso}} = \underset{\beta}{\text{arg min}} \left\{ \sum_{i=1}^n \left( Y_i - \beta_0 - \sum_{j=1}^p \beta_j X_{ij} \right)^2 + \lambda \sum_{j=1}^p |\beta_j| \right\}.
+$$
+
+The penalty term $\lambda\sum_{j=1}^p |\beta_j|$ forces some of the coefficients to become exactly zero, thereby performing variable selection and leading to a sparse model. The hyperparameter $\lambda > 0$ determines the amount of shrinkage. From a Bayesian perspective, parameters are treated as random variables with prior distributions. Following the Bayes' theorem, the likelihood of the observed data with these priors produces a posterior distribution for the parameters:
+
+$$
+p(\beta | X, Y) \propto \underbrace{p(Y | X, \beta)}_{\text{likelihood}} \cdot \underbrace{p(\beta)}_{\text{prior}}
+$$
+
+-   The likelihood reflects how plausible the observed data $Y$ are given parameters $\beta$ and data $X$.
+
+-   The prior expresses pre-established beliefs about $\beta$ before gathering the data. Different priors will lead to different forms of regularization.
+
+Going back to the standard linear regression, the likelihood for the data is:
+
+$$
+p(Y|X, \beta) = \prod_{i=1}^n \frac{1}{\sqrt{2 \pi} \sigma} \exp\left(-\frac{1}{2 \sigma^2} \left(y_i - \beta_0 - \sum_{j=1}^p \beta_j x_{ij} \right)^2 \right) = \left(\frac{1}{\sqrt{2 \pi} \sigma}\right)^n \exp\left(-\frac{1}{2 \sigma^2} \sum_{i=1}^n \left(y_i - \beta_0 - X_{i, \cdot} \beta \right)^2 \right),
+$$
+
+-   where $X_{i, \cdot}$ denotes the $i$-th row of $X$.
+
+It can be shown that choosing a Laplace prior (or double-exponential prior) for each $\beta_j$:
+
+$$
+\beta_j \sim \text{Laplace}(0, b)
+$$
+
+with density:
+
+$$
+p(\beta_j) = \frac{1}{2b} \exp\left(-\frac{|\beta_j|}{b}\right)
+$$
+
+yields a posterior that the mode (the maximum a posterior, or MAP, estimate) is the lasso solution.
+
+To continue, the joint prior on $\beta$ is:
+
+$$
+p(\beta) = \prod_{j=1}^p \frac{1}{2b} \exp\left(-\frac{|\beta_j|}{b}\right) = \left(\frac{1}{2b}\right)^p \exp\left(-\frac{1}{b} \sum_{j=1}^p |\beta_j|\right).
+$$
+
+The choice of $\beta_0$ does not affect the argument regarding $\beta$.
+
+Substituting the above likelihood and prior distribution to the Bayes' theorem, we have:
+
+\begin{align}
+p(\beta | X, Y) &= \left(\frac{1}{\sqrt{2 \pi} \sigma}\right)^n \exp\left(-\frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 \right) \cdot \left(\frac{1}{2b}\right)^p \exp\left(-\frac{1}{b} \sum_{j=1}^p |\beta_j|\right) \\
+&= \left(\frac{1}{\sqrt{2 \pi} \sigma}\right)^n \left(\frac{1}{2b}\right)^p \exp\left(-\frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 - \frac{1}{b} \sum_{j=1}^p |\beta_j|\right).
+\end{align}
+
+By ignoring multiplicative constants that do not depend on $\beta$, the posterior simplifies to:
+
+$$
+p(\beta|X, Y) \propto \exp\left(-\frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 - \frac{1}{b} \sum_{j=1}^p |\beta_j|\right).
+$$
+
+Again, the MAP estimate $\hat\beta$ is defined as the parameter value that maximizes the posterior distribution. Since the exponential is monotonic, we can minimize the negative log-posterior for simplicity and canceling out the negative signs. The negative log-posterior is:
+
+$$
+-\log p(\beta|X, Y) \propto \frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 + \frac{1}{b} \sum_{j=1}^p |\beta_j|,
+$$
+
+which leads the MAP estimate to become:
+
+$$
+\hat{\beta}_{\text{MAP}} = \arg|_{\beta} \left\{ \frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 + \frac{1}{b} \sum_{j=1}^p |\beta_j| \right\}.
+$$
+
+Next, recall that the lasso estimate $\hat{\beta}_\text{lasso}$ is defined as the optimization problem that:
+
+$$
+\hat{\beta}_{\text{lasso}} = \underset{\beta}{\text{arg min}} \left\{ \sum_{i=1}^n \left( Y_i - \beta_0 - \sum_{j=1}^p \beta_j X_{ij} \right)^2 + \lambda \sum_{j=1}^p |\beta_j| \right\}.
+$$
+
+Placing the MAP objective function and the lasso objective function side by side, we can see that they differ only by a constant scalar factor. If we multiply the MAP objective function by $2\sigma^2$, we obtain:
+
+$$
+2\sigma^2 \left[ \frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 + \frac{1}{b} \sum_{j=1}^p |\beta_j| \right] = \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 + \frac{2\sigma^2}{b} \sum_{j=1}^p |\beta_j|.
+$$
+
+Then, it becomes obvious that by equating $\lambda = \frac{2\sigma^2}{b}$:
+
+$$
+\hat{\beta}_{\text{MAP}} = \arg|_{\beta} \left\{ \sum_{i=1}^n (y_i - \beta_0 - X_{i,\cdot} \beta)^2 + \frac{b}{2\sigma^2} \sum_{j=1}^p |\beta_j| \right\} = \hat{\beta}_{\text{lasso}}.
+$$
+
+Thus, we have shown that the Bayesian MAP estimator under a Laplace prior for regression coefficients corresponds exactly to the lasso estimator. In Appendix A., you can find a more intuitive explanation of the Bayesian way of thinking and the reason why Laplace distribution can be used to zero-out coefficients.
+
+# 2. Scale Mixture Representation of the Laplace Prior
+
+As established in the introduction, placing an independent Laplace prior on each regression coefficient $\beta_j$ leads to a posterior whose mode is equivalent to the lasso solution.
+
+This prior is not conjugate to the Gaussian likelihood, which complicates direct posterior inference. However, Park and Casella (2008) offered a key insight: the Laplace distribution can be expressed as a scale mixture of Gaussian and exponential distributions. This reparameterization introduces an auxiliary variable, significantly simplifying posterior sampling and enabling full exploitation of Bayesian inference. Specifically, for parameters $\sigma^2 > 0$ and $\lambda > 0$, if $\beta_j|\lambda_j \sim N(0, \sigma^2 \lambda_j)$ and $\lambda_j \sim \text{Exp}\left(\frac{\lambda^2}{2}\right)$, then the marginal distribution of $\beta_j$ is $\text{Laplace}(0, b)$ where $b = \frac{\sigma^2}{\lambda}$.
+
+The corresponding densities for the aforementioned hierarchical model are:
+
+$$
+p(\beta_j|\lambda_j, \sigma^2) = \frac{1}{\sqrt{2\pi \sigma^2 \lambda_j}} \exp\left(-\frac{\beta_j^2}{2\sigma^2 \lambda_j}\right),
+$$
+
+and
+
+$$
+p(\lambda_j) = \frac{\lambda^2}{2} \exp\left(-\frac{\lambda^2}{2} \lambda_j\right), \quad \lambda_j > 0.
+$$
+
+To find the marginal distribution of $\beta_j$, integrate out $\lambda_j$:
+
+$$
+p(\beta_j|\sigma^2) = \int_0^\infty p(\beta_j|\lambda_j, \sigma^2) p(\lambda_j) \, d\lambda_j.
+$$
+
+Substituting the pdfs, we obtain:
+
+$$
+p(\beta_j|\sigma^2) = \int_0^\infty \frac{1}{\sqrt{2\pi \sigma^2 \lambda_j}} \exp\left(-\frac{\beta_j^2}{2\sigma^2 \lambda_j}\right) \cdot \frac{\lambda^2}{2} \exp\left(-\frac{\lambda^2}{2} \lambda_j\right) \, d\lambda_j.
+$$
+
+This integral is known in the literature as a standard result in scale mixtures of normal distributions. Performing the integration yields:
+
+$$
+p(\beta_j | \sigma^2) = \frac{\lambda}{2} \exp\left(-\frac{\lambda |\beta_j|}{\sigma^2}\right).
+$$
+
+Define $b = \frac{\sigma^2}{\lambda}$. Then we can rewrite the above as:
+
+$$
+p(\beta_j | \sigma^2) = \frac{1}{2b} \exp\left(-\frac{|\beta_j|}{b}\right).
+$$
+
+This is exactly the Laplace distribution with location 0 and scale $b$:
+
+$$
+\beta_j | \sigma^2 \sim \text{Laplace}(0, b).
+$$
+
+Since this derivation holds for any given $\sigma^2 > 0$ and $\lambda > 0$, we conclude that:
+
+$$
+\beta_j \sim \text{Laplace}(0, b) \iff \beta_j | \lambda_j \sim N(0, \sigma^2 \lambda_j) \quad \text{and} \quad \lambda_j \sim \text{Exp}\left(\frac{\lambda^2}{2}\right),
+$$
+
+with $b = \frac{\sigma^2}{\lambda}$.
+
+# 3. Full Bayesian Hierarchy
+
+We now consider the full Bayesian Lasso model. Following from the above scale mixture representation of Laplace as the prior on each $\beta_j$, we also assign an inverse-gamma prior to $\sigma^2$ to complete the Bayesian specification:
+
+$$
+\sigma^2 \sim IG(a_0, b_0), \quad a_0, b_0 >0.
+$$
+
+The joint posterior distribution is given by:
+
+$$
+p(\beta, \lambda, \sigma^2|y) \propto 
+p(y|\beta, \sigma^2) 
+\prod_{j=1}^p p(\beta_j|\lambda_j, \sigma^2) p(\lambda_j) p(\sigma^2).
+$$
+
+Substituting the known formulas:
+
+-   $y|\beta, \sigma^2 \sim N(X\beta, \sigma^2 I_n)$,
+
+-   $\beta_j|\lambda_j, \sigma^2 \sim N(0, \sigma^2 \lambda_j)$,
+
+-   $\lambda_j \sim \text{Exp}\left(\frac{\lambda^2}{2}\right)$,
+
+-   $\sigma^2 \sim IG(a_0, b_0)$.
+
+This encompasses the full hierarchical Bayesian model.
+
+
+# 4. Posterior Sampling
+
+A key advantage of the hierarchical representation is that each full conditional distribution is either conjugate or has a known form, enabling convenient MCMC Gibbs sampling. 
+
+1. **Full Conditional for $\beta$:**
+
+Conditional on $\lambda$ and $\sigma^2$, the posterior for $\beta$ is Gaussian. Let $D_\lambda = \text{diag}(\lambda_1, \dots, \lambda_p)$. Then:
+
+$$
+p(\beta|\lambda, \sigma^2, y) \sim N\left(\left(X^\top X + D_\lambda^{-1}\right)^{-1} X^\top y, \, \sigma^2 \left(X^\top X + D_\lambda^{-1}\right)^{-1}\right)
+$$
+
+2. **Full Conditional for $\lambda_j$:**
+
+For each $j$, given $\beta_j$ and $\sigma^2$, the full conditional distribution of $\lambda_j$ is Inverse-Gaussian.
+
+$$
+\lambda_j|\beta_j, \sigma^2 \sim \text{Inverse-Gaussian}(\mu_j, \gamma),
+$$
+
+where the parameters are:
+
+$$
+\mu_j = \frac{\sqrt{\sigma^2}}{\lambda |\beta_j|}, \quad \gamma = \lambda^2.
+$$
+
+The density is given by:
+
+$$
+p(z) = \sqrt{\frac{\gamma}{2 \pi z^3}} \exp\left(-\frac{\gamma (z - \mu)^2}{2 \mu^2 z}\right), \quad z > 0.
+$$
+
+3. **Full Conditional for $\sigma^2$:**
+
+Given $\beta$ and $\lambda$, the full conditional for $\sigma^2$ is Inverse-Gamma:
+
+$$
+\sigma^2|\beta, \lambda, y \sim IG\left(a_0 + \frac{n + p}{2}, \, b_0 + \frac{\|y - X\beta\|^2}{2} + \frac{1}{2} \sum_{j=1}^p \frac{\beta_j^2}{\lambda_j}\right).
+$$
+
+This inverse-gamma distribution arises from the conjugacy of the normal likelihood and the scaled normal prior for $\sigma^2$.
+
+## 4.1 Gibbs Sampler Algorithm
+
+1.    **Initialization**:  
+
+Initialize $\beta^{(0)}, \lambda^{(0)}, \sigma^{2(0)}$.
+
+2.    **Update $\beta$:**
+
+Given $\lambda^{(t-1)}$ and $\sigma^{2(t-1)}$:
+
+$$
+\beta^{(t)} \sim N\left(\left(X^\top X + D_{\lambda^{(t-1)}}^{-1}\right)^{-1} X^\top y, \, \sigma^{2(t-1)} \left(X^\top X + D_{\lambda^{(t-1)}}^{-1}\right)^{-1}\right).
+$$
+
+3.    **Update $\lambda_j$ for each $j = 1, \dots, p$:**  
+
+Given $\beta_j^{(t)}$ and $\sigma^{2(t-1)}$:
+
+$$
+\lambda_j^{(t)} \sim \text{Inverse-Gaussian}\left(\frac{\sqrt{\sigma^{2(t-1)}}}{\lambda |\beta_j^{(t)}|}, \, \lambda^2\right).
+$$
+
+4.    **Update $\sigma^2$:**
+
+Given $\beta^{(t)}$ and $\lambda^{(t)}$:
+
+$$
+\sigma^{2(t)} \sim IG\left(a_0 + \frac{n + p}{2}, \, b_0 + \frac{\|y - X\beta^{(t)}\|^2}{2} + \sum_{j=1}^p \frac{\beta_j^{(t)^2}}{\lambda_j^{(t)}}\right).
+$$
+
+5.    **Iterate:**
+
+Repeat steps 2-4 for $t=1, \dots, T$ iterations. After suitable burn-in (e.g., decided by traceplot), use the remaining samples to approximate the posterior distributions of $\beta$ and $\sigma^2$.
+
+## 4.2  Posterior Inference:
+
+From the collected MCMC Gibbs samples ${\beta^{(t)}, \sigma^{2(t)}}$, we can compute posterior summaries, including posterior mean ($\hat\beta_{m} = \frac{1}{M}\sum_{t=1}^M\beta^{(t)}$ and credible intervals.
+
+# 5. Simulated Example:
+
+Next, we will run a simple simulation to compare the traditional (frequentist) Lasso, Lasso with bootstrapping for empirical uncertainty assessment, and the Bayesian Lasso in terms of point estimation accuracy, uncertainty qualification, and variable selection effectiveness. 
+
+The set-up is as follows:
+
+-   Sample size: $n = 500$
+
+-   Number of predictors: $p = 20$
+
+-   True coefficients: $\beta^* = (1.5, 2.5, 3.5, 0,\dots, 0)$, with only three nonzero true values to simulate a sparse scenario. 
+
+-   $X_{ij} \sim_{i.i.d} N(0, 1)$
+
+-   $y = X\beta^* + \epsilon, \epsilon \sim_{i.i.d} N(0, 1)$
+
+The intention is to test the similarity in terms of performance between frequentist Lasso and Bayesian Lasso; and the differences between Lasso with Bootstrapping that yield empirical intervals and posterior credible intervals. 
+
+```{r, echo = FALSE}
+# Required packages
+# install.packages("glmnet")
+# install.packages("MASS")
+# install.packages("ggplot2")
+
+library(glmnet)
+library(MASS)
+library(ggplot2)
+
+set.seed(123)
+
+####################################
+# 1. Simulate Sparse Data
+####################################
+n <- 500
+p <- 20
+X <- matrix(rnorm(n*p), n, p)
+beta_true <- c(1.5, 2.5, 3.5, 0, 0, rep(0, p-5))
+y <- X %*% beta_true + rnorm(n, sd=1) # sigma^2=1
+
+####################################
+# 2. Fit Frequentist Lasso
+####################################
+cvfit <- cv.glmnet(X, y, alpha = 1)
+lambda_cv <- cvfit$lambda.min
+lasso_fit <- glmnet(X, y, alpha=1, lambda = lambda_cv)
+beta_lasso <- as.vector(coef(lasso_fit))[-1] # Remove intercept
+
+cat("Frequentist Lasso Estimates:\n")
+print(beta_lasso)
+
+#####################################
+# 3. Bootstrapping for Lasso Uncertainty
+#####################################
+B <- 200 # number of bootstrap replications
+beta_boot <- matrix(0, nrow = B, ncol = p)
+
+for (b in 1:B) {
+  idx <- sample(1:n, n, replace = TRUE)
+  Xb <- X[idx, , drop=FALSE]
+  yb <- y[idx]
+  cvfit_b <- cv.glmnet(Xb, yb, alpha=1)
+  lambda_b <- cvfit_b$lambda.min
+  fit_b <- glmnet(Xb, yb, alpha=1, lambda=lambda_b)
+  beta_boot[b, ] <- as.vector(coef(fit_b))[-1]
+}
+
+boot_means <- colMeans(beta_boot)
+boot_ci <- apply(beta_boot, 2, quantile, c(0.025, 0.975))
+
+cat("\nBootstrapped Lasso Means and 95% Intervals:\n")
+print(rbind(mean=boot_means, ci_lower=boot_ci[1,], ci_upper=boot_ci[2,]))
+
+##########################################
+# 4. Bayesian Lasso (Gibbs Sampler)
+##########################################
+rinvgaussian <- function(n, mu, lambda) {
+  z <- numeric(n)
+  for (i in 1:n) {
+    u <- rnorm(1)^2
+    x <- mu + (mu^2 * u)/(2*lambda) - (mu/(2*lambda))*sqrt(4*mu*lambda*u + mu^2*u^2)
+    if (runif(1) <= mu/(mu+x)) {
+      z[i] <- x
+    } else {
+      z[i] <- mu^2/x
+    }
+  }
+  z
+}
+
+bayesian_lasso <- function(y, X, lambda = 1, a0 = 0.01, b0 = 0.01, 
+                           n_iter = 10000, burn_in = 5000, thin = 5) {
+  n <- length(y)
+  p <- ncol(X)
+  
+  sigma2 <- 1
+  beta <- rep(0, p)
+  lambda_vec <- rep(1/lambda, p)
+  
+  XtX <- crossprod(X)
+  XtY <- crossprod(X, y)
+  
+  keep <- seq(burn_in+1, n_iter, by=thin)
+  beta_samples <- matrix(0, nrow = length(keep), ncol = p)
+  sigma2_samples <- numeric(length(keep))
+  
+  idx <- 1
+  for (iter in 1:n_iter) {
+    # Update beta
+    D_inv <- diag(1/lambda_vec, p, p)
+    V_beta <- solve(XtX + D_inv)
+    m_beta <- V_beta %*% XtY
+    beta <- mvrnorm(1, mu = m_beta, Sigma = sigma2 * V_beta)
+    
+    # Update lambda_j
+    for (j in 1:p) {
+      mu_ig <- sqrt((lambda^2 * sigma2)/(beta[j]^2))
+      lambda_vec[j] <- rinvgaussian(1, mu_ig, lambda^2)
+    }
+    
+    # Update sigma^2
+    resid <- y - X %*% beta
+    shape <- a0 + (n+p)/2
+    rate <- b0 + (crossprod(resid) + sum((beta^2)/lambda_vec))/2
+    sigma2 <- 1 / rgamma(1, shape=shape, rate=rate)
+    
+    if (iter %in% keep) {
+      beta_samples[idx,] <- beta
+      sigma2_samples[idx] <- sigma2
+      idx <- idx + 1
+    }
+  }
+  
+  list(beta = beta_samples, sigma2 = sigma2_samples,
+       beta_mean = colMeans(beta_samples),
+       beta_ci = apply(beta_samples, 2, quantile, c(0.025,0.975)),
+       beta_samples_full = beta_samples)
+}
+
+bl_fit <- bayesian_lasso(y, X, lambda=1, a0=0.01, b0=0.01,
+                         n_iter=10000, burn_in=5000, thin=5)
+
+cat("\nBayesian Lasso Posterior Means and 95% Credible Intervals:\n")
+print(rbind(mean=bl_fit$beta_mean, 
+            ci_lower=bl_fit$beta_ci[1,], 
+            ci_upper=bl_fit$beta_ci[2,]))
+
+##########################
+# 5. Performance Comparison
+##########################
+
+# Mean Squared Error of Estimates:
+mse_lasso <- mean((beta_lasso - beta_true)^2)
+mse_boot_mean <- mean((boot_means - beta_true)^2)
+mse_bayes_mean <- mean((bl_fit$beta_mean - beta_true)^2)
+
+cat("\nMSE of Estimates:\n")
+cat("Lasso:", mse_lasso, "\n")
+cat("Lasso (Bootstrap mean):", mse_boot_mean, "\n")
+cat("Bayesian Lasso (Posterior mean):", mse_bayes_mean, "\n")
+
+# Variable Selection Performance:
+# True nonzero are at positions 1,2,5
+# Count how often intervals exclude zero:
+freq_selected <- sum(beta_lasso != 0)
+bayes_zero_in_ci <- sapply(1:p, function(j) 0 >= bl_fit$beta_ci[1,j] & 0 <= bl_fit$beta_ci[2,j])
+# This checks how many CIs cover zero vs Lasso exact zeros.
+
+cat("\nVariable Selection (qualitative):\n")
+cat("Lasso sets coefficients exactly to zero or not, Bayesian gives a probability.\n")
+cat("Number of exact zeros (Lasso):", sum(beta_lasso == 0), "\n")
+cat("Bayesian CI containing zero (count):", sum(bayes_zero_in_ci), 
+    "out of", p, "coefficients\n")
+
+##########################
+# 6. Visualizations
+##########################
+
+df_compare <- data.frame(
+  Index = 1:p,
+  True = beta_true,
+  Lasso = beta_lasso,
+  BootMean = boot_means,
+  BayesMean = bl_fit$beta_mean,
+  BootLower = boot_ci[1,],
+  BootUpper = boot_ci[2,],
+  BayesLower = bl_fit$beta_ci[1,],
+  BayesUpper = bl_fit$beta_ci[2,]
+)
+
+# Plotting comparisons of means and intervals
+p_compare <- ggplot(df_compare, aes(x=Index)) +
+  geom_hline(yintercept=0, linetype="dashed", color="grey60") +
+  # True values
+  geom_point(aes(y=True), shape=17, color="black", linewidth=3) +
+  # Bayesian intervals and mean
+  geom_segment(aes(y=BayesLower, yend=BayesUpper, x=Index-0.2, xend=Index-0.2), 
+               color="blue", size=1.2) +
+  geom_point(aes(y=BayesMean, x=Index-0.2), color="blue", size=2) +
+  # Bootstrap intervals and mean
+  geom_segment(aes(y=BootLower, yend=BootUpper, x=Index+0.2, xend=Index+0.2), 
+               color="red", size=1.2) +
+  geom_point(aes(y=BootMean, x=Index+0.2), color="red", size=2) +
+  # Lasso point
+  geom_point(aes(y=Lasso), color="green4", shape=19, size=2) +
+  scale_x_continuous(breaks=1:p) +
+  labs(title="Comparison of Coefficient Estimates and Intervals",
+       subtitle="Black triangles = True, Blue = Bayesian (mean & CI), Red = Bootstrap (mean & CI), Green = Lasso point",
+       y="Coefficient Value")
+
+print(p_compare)
+
+# Posterior distributions for Bayesian Lasso for a few coefficients
+# Example: Coefficients 1,2,3,5
+
+
+selected_coeffs <- c(1, 2, 3, 4, 5)
+true_values <- beta_true[selected_coeffs]
+
+# Create a data frame for true values
+true_df <- data.frame(
+  Coeff = factor(selected_coeffs, levels = selected_coeffs),
+  TrueVal = true_values
+)
+post_df <- data.frame(
+  BetaVal = as.vector(bl_fit$beta[, selected_coeffs]),
+  Coeff = factor(rep(selected_coeffs, each = nrow(bl_fit$beta)))
+)
+
+p_posterior <- ggplot(post_df, aes(x = BetaVal)) +
+  geom_density(fill = "blue", alpha = 0.3) +
+  facet_wrap(~Coeff, scales = "free", nrow = 2) +
+  geom_vline(data = true_df, aes(xintercept = TrueVal), 
+             linetype = "dashed", color = "red") +
+  labs(title = "Bayesian Lasso Posterior Distributions",
+       x = "Coefficient Value", y = "Density")
+
+print(p_posterior)
+```
+
+The frequentist Lasso estimates for the three nonzero coefficients (approximately 1.45, 2.43, and 3.44) are quite close to their true values (1.5, 2.5, and 3.5). The Bayesian Lasso’s posterior mean estimates for these coefficients (around 1.49, 2.46, 3.46) are similarly close but slightly more shrunk towards zero. Both methods capture the true nonzero coefficients reasonably well.
+
+The bootstrapped intervals are relatively tight and include values near the frequentist estimates. They offer an approximation of variability but are based on resampling and do not directly represent a “probability” that a coefficient is in a given range. Thus, interpreting these intervals are challenging, even though the resulting intervals are pretty similar. 
+
+On the other hand, the Bayesian Lasso provides credible intervals that have a direct probabilistic interpretation. For the true coefficients, the intervals do not include zero, confirming a high posterior probability that these coefficients are nonzero. For most of the irrelevant predictors, the Bayesian Lasso’s intervals often include zero, reflecting uncertainty and the possibility that these coefficients may be effectively negligible. 
+
+The Lasso sets several coefficients exactly to zero, enforcing sparsity. In this run, it sets 10 out of 20 coefficients to zero. This is a binary selection that can be easy to interpret, but does not convey how close a "zero" coefficient might be to being included. 
+
+The Bayesian Lasso rarely produces exact zeros but shows posterior distributions heavily centered near zero for irrelevant predictors. Most of these variables have credible intervals that include zero, suggesting that the Bayesian model does not support these predictors as significant. This approach offers more insight into the model specifics by providing how plausible a coefficient differs from zero. 
+
+The provided MSE values show that in this scenario, the frequentist Lasso’s point estimates achieve a slightly lower MSE than the Bayesian Lasso’s posterior means. This can happen because the Bayesian method’s shrinkage and uncertainty modeling may lead to more conservative estimates, sometimes increasing average squared error slightly. But, overall the two methods achieved very similar results. 
+
+In essence, the Bayesian approach offers more "interpretability" through its unique posterior distribution, while at the cost of greater computational demand. In terms of performance, the frequentist Lasso and Bayesian Lasso methods do not exhibit significant differences, and this alignment is expected to persist or even strengthen as the sample size increases, consistent with the Bernstein–von Mises theorem.
+
+# 6. Discussion and Limitation:
+
+The Bayesian Lasso provides a natural probabilistic interpretation of Lasso shrinkage by using Laplace priors. Unlike the frequentist Lasso, which offers only point estimates, the Bayesian Lasso delivers full posterior distributions, making credible intervals and probabilistic statements about coefficient values possible. This richer inference power can be especially valuable when assessing uncertainty about variable inclusion and magnitude.
+
+This report focuses primarily on the theoretical foundation and a specific simulation scenario. It does not thoroughly explore the sensitivity of results to hyperparameter choices, investigate performance across a wide range of simulation seettings, or delve deeply into model diagnostics such as MCMC convergence checks. Moreover, the comparisons are illustrative rather than exhaustive, providing a conceptual understanding rather than a comprehensive empirical assessment of Bayesian Lasso under various complex modeling conditions.
+
+# Appendix A.
+
+A Bayesian viewpoint starts by establishing beliefs about parameter values before seeing data. The Laplace prior places a very high density near zero, expressing a strong initial belief that coefficients should be small or zero. To deviate far from zero, the data must exhibit extreme evidence. This “sharp peak” at zero effectively shrinks weak effects towards zero, yielding a sparse solution where only truly necessary parameters become large.
+
+```{r, echo = FALSE}
+library(ggplot2)
+
+laplace_pdf <- function(x, mu=0, b=1) (1/(2*b))*exp(-abs(x-mu)/b)
+gaussian_pdf <- function(x, mu=0, sigma=1) (1/(sqrt(2*pi)*sigma))*exp(-(x-mu)^2/(2*sigma^2))
+
+x <- seq(-5, 5, length.out=1000)
+lap_df <- data.frame(x=x, pdf=laplace_pdf(x))
+gauss_df <- data.frame(x=x, pdf=gaussian_pdf(x))
+
+ggplot() +
+  geom_line(data=lap_df, aes(x=x, y=pdf), color="yellow", linewidth=1.2) +
+  geom_line(data=gauss_df, aes(x=x, y=pdf), color="green", linetype="dashed", linewidth=1.2) +
+  theme_minimal() +
+  labs(title="Laplace vs. Gaussian Prior",
+       x="Coefficient Value",
+       y="Density") +
+  annotate("text", x=0, y=laplace_pdf(0)*1.2, label="Laplace", color="yellow") +
+  annotate("text", x=2, y=gaussian_pdf(2), label="Gaussian", color="green")
+```
+
+# Reference:
+
+Chen, Y. (2021). STA521: Predictive Modelling and Statistical Learning, Lecture 9: Bayesian Regression I. Duke University. Retrieved from https://www2.stat.duke.edu/courses/Fall21/sta521.001/post/week05-1/main.pdf
+
+Kyung, Minjung & Gill, Jeff & Ghosh, Malay & Casella, George. (2010). Penalized Regression, Standard Errors, and Bayesian Lassos. Bayesian Analysis. 5. 369-412. 10.1214/10-BA607. 
+
+Park, T., & Casella, G. (2008). The Bayesian Lasso. Journal of the American Statistical Association, 103(482), 681–686.
+
+Tibshirani, R. (1996). Regression shrinkage and selection via the Lasso. Journal of the Royal Statistical Society. Series B (Methodological), 58(1), 267–288.
+
+
+
+
